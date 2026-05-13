@@ -53,6 +53,8 @@ export const otelSDK = new NodeSDK({
 // Start the OTEL SDK
 otelSDK.start();
 
+console.log('[OTEL] using collector endpoint:', otlpBase);
+
 // 1.5 Start host metrics collection
 const hostMetrics = new HostMetrics({
   meterProvider: metrics.getMeterProvider(),
