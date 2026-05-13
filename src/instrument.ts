@@ -1,8 +1,8 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
+import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
 import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
@@ -14,27 +14,13 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const DEFAULT_OTLP_ENDPOINT = 'http://localhost:4318';
-
-function buildOtlpUrl(specific?: string, base?: string, suffix = ''): string {
-  // Use specific endpoint if provided
-  if (specific && specific.length > 0) return specific;
-  const b = (base && base.length > 0) ? base : DEFAULT_OTLP_ENDPOINT;
-  // Normalize signal-specific OTLP endpoint if base already has /v1/<signal>
-  if (/\/v1\/(traces|metrics|logs)\/?$/.test(b)) {
-    return b.replace(/\/v1\/(traces|metrics|logs)\/?$/, suffix);
-  }
-  // If base already ends with requested suffix, return as-is
-  if (b.endsWith(suffix)) return b;
-  return b.replace(/\/$/, '') + suffix;
-}
+// gRPC exporters use the base endpoint only (no /v1/* path) — port 4317
+const DEFAULT_OTLP_ENDPOINT = 'http://localhost:4317';
 
 const serviceName = process.env.OTEL_SERVICE_NAME || process.env.APP_NAME || 'microservice-test';
-const otlpBase = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || process.env.OTEL_EXPORTER_OTLP || DEFAULT_OTLP_ENDPOINT;
-
-const tracesUrl = buildOtlpUrl(process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, otlpBase, '/v1/traces');
-const metricsUrl = buildOtlpUrl(process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT, otlpBase, '/v1/metrics');
-const logsUrl = buildOtlpUrl(process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, otlpBase, '/v1/logs');
+// Strip any /v1/* path suffix that might be leftover from HTTP-style env vars
+const otlpBase = (process.env.OTEL_EXPORTER_OTLP_ENDPOINT || DEFAULT_OTLP_ENDPOINT)
+  .replace(/\/v1\/(traces|metrics|logs)\/?$/, '').replace(/\/$/, '');
 
 // 1. Initialize OpenTelemetry SDK (vendor-neutral OTLP/HTTP exporters)
 export const otelSDK = new NodeSDK({
@@ -42,12 +28,12 @@ export const otelSDK = new NodeSDK({
     [ATTR_SERVICE_NAME]: serviceName,
     [ATTR_SERVICE_VERSION]: process.env.APP_VERSION || '1.0.0',
   }),
-  traceExporter: new OTLPTraceExporter({ url: tracesUrl }),
+  traceExporter: new OTLPTraceExporter({ url: otlpBase }),
   metricReader: new PeriodicExportingMetricReader({
-    exporter: new OTLPMetricExporter({ url: metricsUrl }),
+    exporter: new OTLPMetricExporter({ url: otlpBase }),
   }),
   logRecordProcessor: new BatchLogRecordProcessor(
-    new OTLPLogExporter({ url: logsUrl }),
+    new OTLPLogExporter({ url: otlpBase }),
   ),
   instrumentations: [
     getNodeAutoInstrumentations(),
