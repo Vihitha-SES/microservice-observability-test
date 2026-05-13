@@ -14,13 +14,18 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// gRPC exporters use the base endpoint only (no /v1/* path) — port 4317
-const DEFAULT_OTLP_ENDPOINT = 'http://localhost:4317';
+// gRPC exporters expect a host:port address (no http/https scheme) — default port 4317
+const DEFAULT_OTLP_ENDPOINT = 'localhost:4317';
 
 const serviceName = process.env.OTEL_SERVICE_NAME || process.env.APP_NAME || 'microservice-test';
-// Strip any /v1/* path suffix that might be leftover from HTTP-style env vars
-const otlpBase = (process.env.OTEL_EXPORTER_OTLP_ENDPOINT || DEFAULT_OTLP_ENDPOINT)
-  .replace(/\/v1\/(traces|metrics|logs)\/?$/, '').replace(/\/$/, '');
+// Normalize OTLP endpoint: remove http(s) scheme and any /v1/* suffix so gRPC exporters receive host:port
+function normalizeGrpcEndpoint(raw?: string) {
+  if (!raw || raw.length === 0) return DEFAULT_OTLP_ENDPOINT;
+  const noProto = raw.replace(/^https?:\/\//, '');
+  return noProto.replace(/\/v1\/(traces|metrics|logs)\/?$/, '').replace(/\/$/, '');
+}
+
+const otlpBase = normalizeGrpcEndpoint(process.env.OTEL_EXPORTER_OTLP_ENDPOINT || process.env.OTEL_EXPORTER_OTLP || DEFAULT_OTLP_ENDPOINT);
 
 // 1. Initialize OpenTelemetry SDK (vendor-neutral OTLP/HTTP exporters)
 export const otelSDK = new NodeSDK({
@@ -53,7 +58,17 @@ export const otelSDK = new NodeSDK({
 // Start the OTEL SDK
 otelSDK.start();
 
-console.log('[OTEL] using collector endpoint:', otlpBase);
+console.log('[OTEL] using collector endpoint (gRPC host:port):', otlpBase);
+
+// Emit a one-off test metric to validate metrics export path
+try {
+  const diagMeter = metrics.getMeter('otel-diagnostics');
+  const startupCounter = diagMeter.createCounter('signoz_startup_metric', { description: 'Startup test metric to validate OTLP export' });
+  startupCounter.add(1, { service: serviceName });
+  console.log('[OTEL] emitted startup test metric');
+} catch (e) {
+  console.warn('[OTEL] failed to emit startup test metric', e);
+}
 
 // 1.5 Start host metrics collection
 const hostMetrics = new HostMetrics({
