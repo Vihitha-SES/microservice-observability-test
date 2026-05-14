@@ -59,15 +59,6 @@ try {
   const counter = meter.createCounter('service.startup.total');
   counter.add(1, { service: serviceName });
   console.log(`[OTEL] Emitted startup metric`);
-
-  // 3. Force initial flush to ensure data is sent
-  setTimeout(() => {
-    sdk.forceFlush?.().then(() => {
-      console.log(`[OTEL] Initial flush completed`);
-    }).catch((e) => {
-      console.log(`[OTEL] Initial flush error:`, e);
-    });
-  }, 100);
 } catch (e) {
   console.log(`[OTEL] Error emitting startup telemetry:`, e);
 }
