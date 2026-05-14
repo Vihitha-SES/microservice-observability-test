@@ -37,12 +37,16 @@ const sdk = new NodeSDK({
     [ATTR_SERVICE_NAME]: serviceName,
   }),
   traceExporter: new OTLPTraceExporter({ url: otlpEndpoint }),
-  metricReader: new PeriodicExportingMetricReader({
-    exporter: new OTLPMetricExporter({ url: otlpEndpoint }),
-  }),
-  logRecordProcessor: new BatchLogRecordProcessor(
-    new OTLPLogExporter({ url: otlpEndpoint }),
-  ),
+  metricReaders: [
+    new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({ url: otlpEndpoint }),
+    }),
+  ],
+  logRecordProcessors: [
+    new BatchLogRecordProcessor(
+      new OTLPLogExporter({ url: otlpEndpoint }),
+    ),
+  ],
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
