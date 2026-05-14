@@ -7,9 +7,13 @@ import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { trace, metrics, diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
+
+// Enable OTEL diagnostics to console for error visibility
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 // Normalize OTLP endpoint: remove http/https and trailing slashes for gRPC
 function normalizeGrpcEndpoint(raw?: string) {
@@ -21,6 +25,8 @@ const otlpEndpoint = normalizeGrpcEndpoint(
   process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4317'
 );
 const serviceName = process.env.OTEL_SERVICE_NAME || 'microservice-test';
+
+console.log(`[OTEL] Initializing with endpoint: ${otlpEndpoint}, service: ${serviceName}`);
 
 const sdk = new NodeSDK({
   resource: resourceFromAttributes({
@@ -37,12 +43,39 @@ const sdk = new NodeSDK({
 });
 
 sdk.start();
-console.log(`[OpenTelemetry] Started. Exporting to ${otlpEndpoint}. Service: ${serviceName}`);
+console.log(`[OTEL] SDK started successfully`);
+
+// Emit startup telemetry to ensure data reaches collector
+try {
+  // 1. Test trace
+  const tracer = trace.getTracer('startup');
+  const span = tracer.startSpan('service.startup');
+  span.addEvent('OpenTelemetry service started');
+  span.end();
+  console.log(`[OTEL] Emitted startup trace`);
+
+  // 2. Test metric
+  const meter = metrics.getMeter('startup');
+  const counter = meter.createCounter('service.startup.total');
+  counter.add(1, { service: serviceName });
+  console.log(`[OTEL] Emitted startup metric`);
+
+  // 3. Force initial flush to ensure data is sent
+  setTimeout(() => {
+    sdk.forceFlush?.().then(() => {
+      console.log(`[OTEL] Initial flush completed`);
+    }).catch((e) => {
+      console.log(`[OTEL] Initial flush error:`, e);
+    });
+  }, 100);
+} catch (e) {
+  console.log(`[OTEL] Error emitting startup telemetry:`, e);
+}
 
 const shutdown = () => {
   sdk.shutdown()
-    .then(() => console.log('[OpenTelemetry] Shutdown successful'))
-    .catch((e) => console.log('[OpenTelemetry] Shutdown error', e))
+    .then(() => console.log('[OTEL] Shutdown successful'))
+    .catch((e) => console.log('[OTEL] Shutdown error', e))
     .finally(() => process.exit(0));
 };
 
