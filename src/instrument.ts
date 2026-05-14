@@ -15,14 +15,18 @@ dotenv.config();
 // Enable OTEL diagnostics to console for error visibility
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
-// Normalize OTLP endpoint: remove http/https and trailing slashes for gRPC
+// Normalize OTLP endpoint: ensure http scheme for gRPC
 function normalizeGrpcEndpoint(raw?: string) {
-  if (!raw) return 'localhost:4317';
-  return raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  if (!raw) return 'http://localhost:4317';
+  let endpoint = raw.replace(/\/$/, ''); // Remove trailing slash
+  if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+    endpoint = 'http://' + endpoint; // Add http:// if missing
+  }
+  return endpoint;
 }
 
 const otlpEndpoint = normalizeGrpcEndpoint(
-  process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'localhost:4317'
+  process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4317'
 );
 const serviceName = process.env.OTEL_SERVICE_NAME || 'microservice-test';
 
