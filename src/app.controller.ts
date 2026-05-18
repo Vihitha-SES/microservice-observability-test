@@ -138,7 +138,7 @@ export class AppController {
   }
 
   @Get('test-logs')
-  testLogs() {
+  async testLogs() {
     console.log('\n>>> GET /test-logs - Generating all log levels\n');
     
     this.logger.log('[TEST] This is an INFO log');
@@ -153,10 +153,13 @@ export class AppController {
     this.logger.error('[TEST] This is an ERROR log');
     this.otelLogger.error('[TEST] ERROR level log via OTEL', new Error('Test error'), 'AppController');
     
-    console.log('<<< Test logs emitted, should arrive in SigNoz within 60 seconds\n');
+    // Flush logs to ensure they're exported before response
+    await this.otelLogger.flush(1000);
+    
+    console.log('<<< Test logs emitted and flushed, exported to SigNoz\n');
     
     return {
-      message: 'Test logs sent - check SigNoz logs',
+      message: 'Test logs sent and exported - check SigNoz logs',
       logs: ['INFO', 'DEBUG', 'WARN', 'ERROR'],
       timestamp: new Date().toISOString(),
     };
@@ -296,7 +299,7 @@ export class AppController {
   }
 
   @Get('generate-logs/:count')
-  generateMassLogs(@Param('count') count?: string) {
+  async generateMassLogs(@Param('count') count?: string) {
     const numLogs = count ? parseInt(count, 10) : 100;
     console.log(`\n>>> Generating ${numLogs} logs rapidly...\n`);
 
@@ -333,15 +336,18 @@ export class AppController {
       }
     }
 
+    // Flush logs to ensure they're exported before response
+    await this.otelLogger.flush(2000);
+
     console.log(
-      `<<< ${numLogs} logs generated and emitted. Waiting for export...\n`,
+      `<<< ${numLogs} logs generated, emitted, and flushed to SigNoz\n`,
     );
 
     return {
-      message: `Generated ${numLogs} logs`,
+      message: `Generated and exported ${numLogs} logs`,
       levels: ['INFO', 'DEBUG', 'WARN', 'ERROR'],
       timestamp: new Date().toISOString(),
-      note: 'Check SigNoz Logs tab within 60 seconds',
+      note: 'Logs exported - check SigNoz Logs tab',
     };
   }
 }

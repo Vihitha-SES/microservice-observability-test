@@ -3,7 +3,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
-import { SimpleLogRecordProcessor } from '@opentelemetry/sdk-logs';
+import { SimpleLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -44,8 +44,7 @@ const sdk = new NodeSDK({
     }),
   ],
   logRecordProcessors: [
-    // Use SimpleLogRecordProcessor for immediate export instead of batching
-    // This ensures logs reach the collector immediately without waiting for batch
+    // Use SimpleLogRecordProcessor for immediate export
     new SimpleLogRecordProcessor(
       new OTLPLogExporter({ url: otlpEndpoint }),
     ),
@@ -57,11 +56,10 @@ const sdk = new NodeSDK({
 sdk.start();
 console.log(`[OTEL] SDK started successfully`);
 
-// Get the global LoggerProvider set by the SDK
-const loggerProvider = logs.getLoggerProvider();
-console.log(`[OTEL] LoggerProvider obtained from Logs API`);
+// Get the global LoggerProvider for later use (flushing)
+const loggerProvider = logs.getLoggerProvider() as any;
 
-// Emit startup telemetry to ensure data reaches collector
+// Emit startup telemetry to verify all signal types
 try {
   // 1. Test trace
   const tracer = trace.getTracer('startup');
@@ -93,7 +91,7 @@ try {
 }
 
 // Export for use in other modules
-export { serviceName, loggerProvider };
+export { serviceName, loggerProvider, sdk };
 
 const shutdown = () => {
   sdk.shutdown()

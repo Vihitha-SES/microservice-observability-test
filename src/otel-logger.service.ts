@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { logs } from '@opentelemetry/api-logs';
+import { loggerProvider } from './instrument';
 
 export enum LogLevel {
   TRACE = 1,
@@ -14,11 +15,11 @@ export enum LogLevel {
 export class OtelLoggerService {
   private logger = logs.getLogger('app');
 
-  private getLogLevelNumber(level: LogLevel): number {
+  getLogLevelNumber(level: LogLevel): number {
     return level;
   }
 
-  private getLogLevelText(level: LogLevel): string {
+  getLogLevelText(level: LogLevel): string {
     switch (level) {
       case LogLevel.TRACE:
         return 'TRACE';
@@ -34,6 +35,19 @@ export class OtelLoggerService {
         return 'FATAL';
       default:
         return 'UNKNOWN';
+    }
+  }
+
+  /**
+   * Flush pending logs to ensure they're exported
+   * Must be called after emitting important logs to guarantee delivery
+   */
+  async flush(timeoutMs: number = 500): Promise<void> {
+    try {
+      await (loggerProvider as any).forceFlush(timeoutMs);
+    } catch (error) {
+      console.warn('[OTEL Logger] Flush failed (non-fatal):', error);
+      // Don't throw - flushing failure shouldn't break the app
     }
   }
 
