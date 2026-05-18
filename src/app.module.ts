@@ -1,13 +1,23 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { HttpExceptionFilter } from './http-exception.filter';
 
 @Module({
-  imports: [PrometheusModule.register({
-    path:'/metrics'
-  })],
+  imports: [
+    PrometheusModule.register({
+      path: '/metrics',
+    }),
+  ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+  ],
 })
 export class AppModule {}
