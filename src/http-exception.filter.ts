@@ -7,10 +7,12 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { OtelLoggerService } from './otel-logger.service';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
+  private readonly otelLogger = new OtelLoggerService();
 
   catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -37,19 +39,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
       };
     }
 
-    // Log the exception with all details
-    this.logger.error(
-      `[${request.method}] ${request.url} | Status: ${status} | Message: ${message}`,
-      {
-        exception: exception,
-        errorDetails: errorDetails,
-        request: {
-          method: request.method,
-          url: request.url,
-          headers: request.headers,
-          ip: request.ip,
-        },
-      },
+    // Log the exception with all details to both console and OTEL
+    const logMessage = `[${request.method}] ${request.url} | Status: ${status} | Message: ${message}`;
+    
+    this.logger.error(logMessage);
+    
+    this.otelLogger.error(
+      logMessage,
+      exception,
+      HttpExceptionFilter.name,
+    );
+
+    // Emit structured error log with full context
+    this.otelLogger.error(
+      `HTTP Exception caught`,
+      exception,
+      'HttpExceptionFilter',
     );
 
     response.status(status).json({

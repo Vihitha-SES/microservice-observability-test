@@ -4,6 +4,7 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HttpExceptionFilter } from './http-exception.filter';
+import { OtelLoggerService } from './otel-logger.service';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { HttpExceptionFilter } from './http-exception.filter';
   controllers: [AppController],
   providers: [
     AppService,
+    OtelLoggerService,
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,

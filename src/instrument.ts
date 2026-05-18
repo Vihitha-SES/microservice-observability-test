@@ -8,6 +8,7 @@ import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { trace, metrics, diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { logs } from '@opentelemetry/api-logs';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -67,9 +68,25 @@ try {
   const counter = meter.createCounter('service.startup.total');
   counter.add(1, { service: serviceName });
   console.log(`[OTEL] Emitted startup metric`);
+
+  // 3. Test log
+  const logger = logs.getLogger('startup');
+  logger.emit({
+    severityNumber: 20, // INFO level
+    severityText: 'INFO',
+    body: 'OpenTelemetry service started',
+    attributes: {
+      'service.name': serviceName,
+      component: 'startup',
+    },
+  });
+  console.log(`[OTEL] Emitted startup log`);
 } catch (e) {
   console.log(`[OTEL] Error emitting startup telemetry:`, e);
 }
+
+// Export for use in other modules
+export { serviceName };
 
 const shutdown = () => {
   sdk.shutdown()
