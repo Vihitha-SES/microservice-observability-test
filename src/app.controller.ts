@@ -154,9 +154,9 @@ export class AppController {
     this.logger.error('[TEST] This is an ERROR log');
     this.otelLogger.error('[TEST] ERROR level log via OTEL', new Error('Test error'), 'AppController');
     
-    console.log('\n>>> Waiting for gRPC export to complete...');
-    // Flush with 3 second timeout to ensure gRPC export completes
-    await this.otelLogger.flush(3000);
+    console.log('\n>>> Waiting for batch export to complete...');
+    // Flush with 2 second timeout for batch processor
+    await this.otelLogger.flush(2000);
     
     console.log('>>> ✓ Logs exported to SigNoz - response sent\n');
     console.log('========== END GET /test-logs ==========\n');
@@ -341,11 +341,9 @@ export class AppController {
       }
     }
 
-    console.log(`\n>>> All ${numLogs} logs emitted - starting flush...`);
-    // Flush with 3-5 second timeout for bulk operations
-    // This ensures all gRPC packets are sent to collector
-    const flushTimeout = Math.max(3000, numLogs * 10); // ~10ms per log
-    await this.otelLogger.flush(flushTimeout);
+    console.log(`\n>>> All ${numLogs} logs emitted - waiting for batch export...`);
+    // Flush with 2 second timeout (BatchLogRecordProcessor is efficient)
+    await this.otelLogger.flush(2000);
 
     console.log(`>>> ✓ ${numLogs} logs flushed to SigNoz collector\n`);
     console.log(`========== END GET /generate-logs/${numLogs} ==========\n`);

@@ -3,7 +3,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
-import { SimpleLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs';
+import { BatchLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -44,8 +44,8 @@ const sdk = new NodeSDK({
     }),
   ],
   logRecordProcessors: [
-    // Use SimpleLogRecordProcessor for immediate export
-    new SimpleLogRecordProcessor(
+    // Use BatchLogRecordProcessor for reliable export (like SigNoz recommends)
+    new BatchLogRecordProcessor(
       new OTLPLogExporter({ url: otlpEndpoint }),
     ),
   ],
@@ -77,7 +77,7 @@ try {
   // 3. Test log
   const logger = logs.getLogger('startup');
   logger.emit({
-    severityNumber: 20, // INFO level
+    severityNumber: 9, // INFO level (OpenTelemetry spec: 9, not 20)
     severityText: 'INFO',
     body: 'OpenTelemetry service started',
     attributes: {

@@ -5,10 +5,10 @@ import { loggerProvider } from './instrument';
 export enum LogLevel {
   TRACE = 1,
   DEBUG = 5,
-  INFO = 20,
-  WARN = 30,
-  ERROR = 40,
-  FATAL = 50,
+  INFO = 9,      // OpenTelemetry spec: INFO is 9, not 20
+  WARN = 13,     // OpenTelemetry spec: WARN is 13, not 30
+  ERROR = 17,    // OpenTelemetry spec: ERROR is 17, not 40
+  FATAL = 21,    // OpenTelemetry spec: FATAL is 21, not 50
 }
 
 @Injectable()
@@ -16,6 +16,8 @@ export class OtelLoggerService {
   private logger = logs.getLogger('app');
 
   getLogLevelNumber(level: LogLevel): number {
+    // Returns OpenTelemetry spec severity numbers
+    // These MUST match the enum values for proper SigNoz display
     return level;
   }
 
@@ -40,32 +42,28 @@ export class OtelLoggerService {
 
   /**
    * Flush pending logs to ensure they're exported to SigNoz collector
-   * This MUST wait for gRPC export to complete before returning
+   * BatchLogRecordProcessor batches logs and exports them efficiently
    */
-  async flush(timeoutMs: number = 3000): Promise<void> {
+  async flush(timeoutMs: number = 2000): Promise<void> {
     console.log(`[OTEL Logger] FLUSH START - timeout: ${timeoutMs}ms`);
     
     try {
-      // Try calling forceFlush if available
+      // forceFlush() waits for pending batches to be exported
       if ((loggerProvider as any).forceFlush) {
         console.log('[OTEL Logger] Calling forceFlush()...');
         await (loggerProvider as any).forceFlush(timeoutMs);
         console.log('[OTEL Logger] forceFlush() completed');
-      } else {
-        console.log('[OTEL Logger] forceFlush not available, using delay only');
       }
     } catch (error) {
       console.warn('[OTEL Logger] forceFlush error (continuing):', error);
     }
 
-    // CRITICAL: Add delay for gRPC to complete export
-    // SimpleLogRecordProcessor sends logs asynchronously over gRPC
-    // We MUST wait long enough for the network call to complete
-    const delayMs = Math.max(timeoutMs * 0.8, 1500); // At least 1.5 seconds
-    console.log(`[OTEL Logger] Waiting ${delayMs}ms for gRPC export...`);
+    // Add small delay for any remaining gRPC operations
+    const delayMs = 300;
+    console.log(`[OTEL Logger] Adding ${delayMs}ms delay for network operations`);
     await new Promise(resolve => setTimeout(resolve, delayMs));
     
-    console.log('[OTEL Logger] FLUSH COMPLETE - logs should be exported to collector');
+    console.log('[OTEL Logger] FLUSH COMPLETE - logs exported to collector');
   }
 
   private emit(
@@ -98,11 +96,11 @@ export class OtelLoggerService {
       
       this.logger.emit(logRecord);
       
-      // Debug output to verify emission
+      // Debug output to verify emission with severity number
       console.log(
-        `[OTEL-LOG-EMITTED] [${this.getLogLevelText(level)}] ${message} | context: ${context || 'app'}`,
+        `[OTEL-LOG-EMITTED] [${this.getLogLevelText(level)}|severity:${this.getLogLevelNumber(level)}] ${message} | context: ${context || 'app'}`,
       );
-      console.log(`[OTEL-LOG-EXPORT] Log queued for gRPC export to collector`);
+      console.log(`[OTEL-LOG-EXPORT] Log queued for batch export to collector`);
     } catch (error) {
       console.error('[OTEL Logger] Emit failed:', error);
     }
