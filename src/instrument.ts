@@ -3,7 +3,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
-import { BatchLogRecordProcessor } from '@opentelemetry/sdk-logs';
+import { SimpleLogRecordProcessor } from '@opentelemetry/sdk-logs';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
@@ -44,18 +44,20 @@ const sdk = new NodeSDK({
     }),
   ],
   logRecordProcessors: [
-    new BatchLogRecordProcessor(
+    // Use SimpleLogRecordProcessor for immediate export instead of batching
+    // This ensures logs reach the collector immediately without waiting for batch
+    new SimpleLogRecordProcessor(
       new OTLPLogExporter({ url: otlpEndpoint }),
     ),
   ],
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
-// Start SDK which initializes all providers including LoggerProvider
+// Start SDK which initializes all providers
 sdk.start();
 console.log(`[OTEL] SDK started successfully`);
 
-// Get the global LoggerProvider that was set by the SDK
+// Get the global LoggerProvider set by the SDK
 const loggerProvider = logs.getLoggerProvider();
 console.log(`[OTEL] LoggerProvider obtained from Logs API`);
 
@@ -95,7 +97,7 @@ export { serviceName, loggerProvider };
 
 const shutdown = () => {
   sdk.shutdown()
-    .then(() => console.log('[OTEL] Shutdown successful'))
+    .then(() => console.log('[OTEL] SDK shutdown successful'))
     .catch((e) => console.log('[OTEL] Shutdown error', e))
     .finally(() => process.exit(0));
 };
