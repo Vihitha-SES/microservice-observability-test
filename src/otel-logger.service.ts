@@ -57,13 +57,20 @@ export class OtelLoggerService {
     }
 
     try {
-      this.logger.emit({
+      const logRecord = {
         severityNumber: this.getLogLevelNumber(level),
         severityText: this.getLogLevelText(level),
         body: message,
         attributes,
         timestamp: Date.now() * 1_000_000, // nanoseconds
-      });
+      };
+      
+      this.logger.emit(logRecord);
+      
+      // Debug output to verify emission
+      console.log(
+        `[OTEL-LOG-EMITTED] ${this.getLogLevelText(level)} | ${message}`,
+      );
     } catch (error) {
       console.error('[OTEL Logger] Emit failed:', error);
     }

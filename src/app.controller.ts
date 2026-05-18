@@ -139,6 +139,8 @@ export class AppController {
 
   @Get('test-logs')
   testLogs() {
+    console.log('\n>>> GET /test-logs - Generating all log levels\n');
+    
     this.logger.log('[TEST] This is an INFO log');
     this.otelLogger.info('[TEST] INFO level log via OTEL', 'AppController');
     
@@ -151,9 +153,12 @@ export class AppController {
     this.logger.error('[TEST] This is an ERROR log');
     this.otelLogger.error('[TEST] ERROR level log via OTEL', new Error('Test error'), 'AppController');
     
+    console.log('<<< Test logs emitted, should arrive in SigNoz within 60 seconds\n');
+    
     return {
       message: 'Test logs sent - check SigNoz logs',
       logs: ['INFO', 'DEBUG', 'WARN', 'ERROR'],
+      timestamp: new Date().toISOString(),
     };
   }
 
@@ -288,5 +293,55 @@ export class AppController {
         );
         throw new BadRequestException(`Unknown exception type: ${type}`);
     }
+  }
+
+  @Get('generate-logs/:count')
+  generateMassLogs(@Param('count') count?: string) {
+    const numLogs = count ? parseInt(count, 10) : 100;
+    console.log(`\n>>> Generating ${numLogs} logs rapidly...\n`);
+
+    for (let i = 1; i <= numLogs; i++) {
+      const logLevel = i % 4;
+      const message = `[BULK-LOG ${i}/${numLogs}] Generated log message`;
+
+      switch (logLevel) {
+        case 0:
+          this.otelLogger.info(message, 'AppController', {
+            logNumber: i,
+            bulkSize: numLogs,
+          });
+          break;
+        case 1:
+          this.otelLogger.debug(message, 'AppController', {
+            logNumber: i,
+            bulkSize: numLogs,
+          });
+          break;
+        case 2:
+          this.otelLogger.warn(message, 'AppController', {
+            logNumber: i,
+            bulkSize: numLogs,
+          });
+          break;
+        case 3:
+          this.otelLogger.error(
+            message,
+            new Error(`Error ${i}`),
+            'AppController',
+          );
+          break;
+      }
+    }
+
+    console.log(
+      `<<< ${numLogs} logs generated and emitted. Waiting for export...\n`,
+    );
+
+    return {
+      message: `Generated ${numLogs} logs`,
+      levels: ['INFO', 'DEBUG', 'WARN', 'ERROR'],
+      timestamp: new Date().toISOString(),
+      note: 'Check SigNoz Logs tab within 60 seconds',
+    };
   }
 }

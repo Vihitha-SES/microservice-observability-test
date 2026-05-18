@@ -51,8 +51,13 @@ const sdk = new NodeSDK({
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
+// Start SDK which initializes all providers including LoggerProvider
 sdk.start();
 console.log(`[OTEL] SDK started successfully`);
+
+// Get the global LoggerProvider that was set by the SDK
+const loggerProvider = logs.getLoggerProvider();
+console.log(`[OTEL] LoggerProvider obtained from Logs API`);
 
 // Emit startup telemetry to ensure data reaches collector
 try {
@@ -86,7 +91,7 @@ try {
 }
 
 // Export for use in other modules
-export { serviceName };
+export { serviceName, loggerProvider };
 
 const shutdown = () => {
   sdk.shutdown()
