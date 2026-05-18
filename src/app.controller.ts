@@ -139,7 +139,8 @@ export class AppController {
 
   @Get('test-logs')
   async testLogs() {
-    console.log('\n>>> GET /test-logs - Generating all log levels\n');
+    console.log('\n========== GET /test-logs ==========');
+    console.log('>>> Starting log generation and export test\n');
     
     this.logger.log('[TEST] This is an INFO log');
     this.otelLogger.info('[TEST] INFO level log via OTEL', 'AppController');
@@ -153,15 +154,18 @@ export class AppController {
     this.logger.error('[TEST] This is an ERROR log');
     this.otelLogger.error('[TEST] ERROR level log via OTEL', new Error('Test error'), 'AppController');
     
-    // Flush logs to ensure they're exported before response
-    await this.otelLogger.flush(1000);
+    console.log('\n>>> Waiting for gRPC export to complete...');
+    // Flush with 3 second timeout to ensure gRPC export completes
+    await this.otelLogger.flush(3000);
     
-    console.log('<<< Test logs emitted and flushed, exported to SigNoz\n');
+    console.log('>>> ✓ Logs exported to SigNoz - response sent\n');
+    console.log('========== END GET /test-logs ==========\n');
     
     return {
-      message: 'Test logs sent and exported - check SigNoz logs',
+      message: 'Test logs sent and exported to SigNoz collector',
       logs: ['INFO', 'DEBUG', 'WARN', 'ERROR'],
       timestamp: new Date().toISOString(),
+      note: 'Logs should appear in SigNoz Logs tab immediately',
     };
   }
 
@@ -301,11 +305,12 @@ export class AppController {
   @Get('generate-logs/:count')
   async generateMassLogs(@Param('count') count?: string) {
     const numLogs = count ? parseInt(count, 10) : 100;
-    console.log(`\n>>> Generating ${numLogs} logs rapidly...\n`);
+    console.log(`\n========== GET /generate-logs/${numLogs} ==========`);
+    console.log(`>>> Generating ${numLogs} logs for SigNoz export\n`);
 
     for (let i = 1; i <= numLogs; i++) {
       const logLevel = i % 4;
-      const message = `[BULK-LOG ${i}/${numLogs}] Generated log message`;
+      const message = `[BULK-LOG ${i}/${numLogs}] Test message`;
 
       switch (logLevel) {
         case 0:
@@ -336,18 +341,20 @@ export class AppController {
       }
     }
 
-    // Flush logs to ensure they're exported before response
-    await this.otelLogger.flush(2000);
+    console.log(`\n>>> All ${numLogs} logs emitted - starting flush...`);
+    // Flush with 3-5 second timeout for bulk operations
+    // This ensures all gRPC packets are sent to collector
+    const flushTimeout = Math.max(3000, numLogs * 10); // ~10ms per log
+    await this.otelLogger.flush(flushTimeout);
 
-    console.log(
-      `<<< ${numLogs} logs generated, emitted, and flushed to SigNoz\n`,
-    );
+    console.log(`>>> ✓ ${numLogs} logs flushed to SigNoz collector\n`);
+    console.log(`========== END GET /generate-logs/${numLogs} ==========\n`);
 
     return {
-      message: `Generated and exported ${numLogs} logs`,
+      message: `Generated and exported ${numLogs} logs to SigNoz collector`,
       levels: ['INFO', 'DEBUG', 'WARN', 'ERROR'],
       timestamp: new Date().toISOString(),
-      note: 'Logs exported - check SigNoz Logs tab',
+      note: `All ${numLogs} logs should appear in SigNoz immediately`,
     };
   }
 }

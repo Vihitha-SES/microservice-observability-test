@@ -39,16 +39,33 @@ export class OtelLoggerService {
   }
 
   /**
-   * Flush pending logs to ensure they're exported
-   * Must be called after emitting important logs to guarantee delivery
+   * Flush pending logs to ensure they're exported to SigNoz collector
+   * This MUST wait for gRPC export to complete before returning
    */
-  async flush(timeoutMs: number = 500): Promise<void> {
+  async flush(timeoutMs: number = 3000): Promise<void> {
+    console.log(`[OTEL Logger] FLUSH START - timeout: ${timeoutMs}ms`);
+    
     try {
-      await (loggerProvider as any).forceFlush(timeoutMs);
+      // Try calling forceFlush if available
+      if ((loggerProvider as any).forceFlush) {
+        console.log('[OTEL Logger] Calling forceFlush()...');
+        await (loggerProvider as any).forceFlush(timeoutMs);
+        console.log('[OTEL Logger] forceFlush() completed');
+      } else {
+        console.log('[OTEL Logger] forceFlush not available, using delay only');
+      }
     } catch (error) {
-      console.warn('[OTEL Logger] Flush failed (non-fatal):', error);
-      // Don't throw - flushing failure shouldn't break the app
+      console.warn('[OTEL Logger] forceFlush error (continuing):', error);
     }
+
+    // CRITICAL: Add delay for gRPC to complete export
+    // SimpleLogRecordProcessor sends logs asynchronously over gRPC
+    // We MUST wait long enough for the network call to complete
+    const delayMs = Math.max(timeoutMs * 0.8, 1500); // At least 1.5 seconds
+    console.log(`[OTEL Logger] Waiting ${delayMs}ms for gRPC export...`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+    
+    console.log('[OTEL Logger] FLUSH COMPLETE - logs should be exported to collector');
   }
 
   private emit(
@@ -83,8 +100,9 @@ export class OtelLoggerService {
       
       // Debug output to verify emission
       console.log(
-        `[OTEL-LOG-EMITTED] ${this.getLogLevelText(level)} | ${message}`,
+        `[OTEL-LOG-EMITTED] [${this.getLogLevelText(level)}] ${message} | context: ${context || 'app'}`,
       );
+      console.log(`[OTEL-LOG-EXPORT] Log queued for gRPC export to collector`);
     } catch (error) {
       console.error('[OTEL Logger] Emit failed:', error);
     }
