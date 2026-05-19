@@ -4,10 +4,10 @@ import {
   ArgumentsHost,
   HttpException,
   Logger,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { OtelLoggerService } from './otel-logger.service';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -44,6 +44,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const logMessage = `[${request.method}] ${request.url} | Status: ${status} | Message: ${message}`;
     
     this.logger.error(logMessage);
+
+    const activeSpan = trace.getActiveSpan();
+    if (activeSpan) {
+      activeSpan.recordException(exception);
+      activeSpan.setAttributes({
+        'http.method': request.method,
+        'http.target': request.url,
+        'http.status_code': status,
+        'exception.type': exception?.name || 'Error',
+        'exception.message': message,
+        'exception.stacktrace': exception?.stack,
+      });
+      activeSpan.setStatus({
+        code: SpanStatusCode.ERROR,
+        message,
+      });
+    }
     
     this.otelLogger.error(
       logMessage,

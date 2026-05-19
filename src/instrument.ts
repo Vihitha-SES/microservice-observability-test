@@ -7,7 +7,7 @@ import { BatchLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
-import { trace, metrics, diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { trace, metrics, diag, DiagConsoleLogger, DiagLogLevel, SpanStatusCode } from '@opentelemetry/api';
 import { logs } from '@opentelemetry/api-logs';
 import * as dotenv from 'dotenv';
 
@@ -63,6 +63,48 @@ const sdk = new NodeSDK({
 // Start SDK which initializes all providers
 sdk.start();
 console.log(`[OTEL] SDK started successfully`);
+
+const processLogger = logs.getLogger('process-exceptions');
+const processTracer = trace.getTracer('process-exceptions');
+
+function emitProcessException(kind: 'uncaughtException' | 'unhandledRejection', error: unknown) {
+  const exception = error instanceof Error ? error : new Error(String(error));
+
+  processLogger.emit({
+    severityNumber: 17,
+    severityText: 'ERROR',
+    body: `${kind}: ${exception.message}`,
+    attributes: {
+      'exception.type': exception.name,
+      'exception.message': exception.message,
+      'exception.stacktrace': exception.stack,
+      'exception.kind': kind,
+      'service.name': serviceName,
+    },
+  });
+
+  const span = processTracer.startSpan(kind);
+  span.recordException(exception);
+  span.setAttributes({
+    'exception.kind': kind,
+    'exception.type': exception.name,
+    'exception.message': exception.message,
+  });
+  span.setStatus({ code: SpanStatusCode.ERROR, message: exception.message });
+  span.end();
+}
+
+process.on('uncaughtException', (error) => {
+  try {
+    emitProcessException('uncaughtException', error);
+  } finally {
+    throw error;
+  }
+});
+
+process.on('unhandledRejection', (reason) => {
+  emitProcessException('unhandledRejection', reason);
+});
 
 // Emit startup telemetry to verify all signal types
 try {
