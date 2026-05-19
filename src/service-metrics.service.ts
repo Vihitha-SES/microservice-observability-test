@@ -24,8 +24,14 @@ export class ServiceMetricsService implements OnModuleDestroy {
   private lastCpuSampleAt = Date.now();
   private cpuUsagePercent = 0;
 
+  private readonly exceptionsCounter;
+
   constructor() {
     const meter = metrics.getMeter('service-runtime-metrics');
+
+    this.exceptionsCounter = meter.createCounter('exceptions_total', {
+      description: 'Total number of exceptions caught, labeled by type, status code, method, and route',
+    });
 
     this.eventLoopDelayHistogram.enable();
     this.startGcObserver();
@@ -117,6 +123,20 @@ export class ServiceMetricsService implements OnModuleDestroy {
       .addCallback((result) => {
         result.observe(this.gcDurationTotalMs);
       });
+  }
+
+  recordException(opts: {
+    exceptionType: string;
+    httpMethod: string;
+    httpRoute: string;
+    httpStatusCode: number;
+  }): void {
+    this.exceptionsCounter.add(1, {
+      'exception.type': opts.exceptionType,
+      'http.method': opts.httpMethod,
+      'http.route': opts.httpRoute,
+      'http.status_code': opts.httpStatusCode,
+    });
   }
 
   markLiveness(isAlive: boolean): void {

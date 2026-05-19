@@ -3,10 +3,14 @@ import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { OtelLoggerService } from './otel-logger.service';
+import { ServiceMetricsService } from './service-metrics.service';
 
 @Injectable()
 export class OtelExceptionInterceptor implements NestInterceptor {
-  constructor(private readonly otelLogger: OtelLoggerService) {}
+  constructor(
+    private readonly otelLogger: OtelLoggerService,
+    private readonly serviceMetrics: ServiceMetricsService,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     if (context.getType() !== 'http') {
@@ -37,6 +41,13 @@ export class OtelExceptionInterceptor implements NestInterceptor {
             message,
           });
         }
+
+        this.serviceMetrics.recordException({
+          exceptionType: exception?.name || 'Error',
+          httpMethod: request.method,
+          httpRoute: request.route?.path ?? request.url,
+          httpStatusCode: status,
+        });
 
         this.otelLogger.error(
           `[${request.method}] ${request.url} | Status: ${status} | Message: ${message}`,
