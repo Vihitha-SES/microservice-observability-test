@@ -30,24 +30,32 @@ const otlpEndpoint = normalizeGrpcEndpoint(
   process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4317'
 );
 const serviceName = process.env.OTEL_SERVICE_NAME || 'microservice-test';
+const resource = resourceFromAttributes({
+  [ATTR_SERVICE_NAME]: serviceName,
+});
 
 console.log(`[OTEL] Initializing with endpoint: ${otlpEndpoint}, service: ${serviceName}`);
 
+// Logs pipeline: create explicit logger provider and set it globally.
+// This ensures application log emits always go through OTEL logs exporter.
+const loggerProvider = new LoggerProvider({
+  resource,
+  processors: [
+    new BatchLogRecordProcessor(
+      new OTLPLogExporter({ url: otlpEndpoint }),
+    ),
+  ],
+});
+logs.setGlobalLoggerProvider(loggerProvider);
+console.log('[OTEL] Global LoggerProvider configured');
+
 const sdk = new NodeSDK({
-  resource: resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: serviceName,
-  }),
+  resource,
   traceExporter: new OTLPTraceExporter({ url: otlpEndpoint }),
   metricReaders: [
     new PeriodicExportingMetricReader({
       exporter: new OTLPMetricExporter({ url: otlpEndpoint }),
     }),
-  ],
-  logRecordProcessors: [
-    // Use BatchLogRecordProcessor for reliable export (like SigNoz recommends)
-    new BatchLogRecordProcessor(
-      new OTLPLogExporter({ url: otlpEndpoint }),
-    ),
   ],
   instrumentations: [getNodeAutoInstrumentations()],
 });
@@ -55,9 +63,6 @@ const sdk = new NodeSDK({
 // Start SDK which initializes all providers
 sdk.start();
 console.log(`[OTEL] SDK started successfully`);
-
-// Get the global LoggerProvider for later use (flushing)
-const loggerProvider = logs.getLoggerProvider() as any;
 
 // Emit startup telemetry to verify all signal types
 try {

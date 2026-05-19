@@ -12,7 +12,8 @@ import { OtelLoggerService } from './otel-logger.service';
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(HttpExceptionFilter.name);
-  private readonly otelLogger = new OtelLoggerService();
+
+  constructor(private readonly otelLogger: OtelLoggerService) {}
 
   catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();

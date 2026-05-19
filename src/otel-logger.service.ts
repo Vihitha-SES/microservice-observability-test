@@ -1,19 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { logs } from '@opentelemetry/api-logs';
+import { ConsoleLogger, Injectable, LoggerService } from '@nestjs/common';
+import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import { loggerProvider } from './instrument';
+import { serviceName } from './instrument';
 
 export enum LogLevel {
-  TRACE = 1,
-  DEBUG = 5,
-  INFO = 9,      // OpenTelemetry spec: INFO is 9, not 20
-  WARN = 13,     // OpenTelemetry spec: WARN is 13, not 30
-  ERROR = 17,    // OpenTelemetry spec: ERROR is 17, not 40
-  FATAL = 21,    // OpenTelemetry spec: FATAL is 21, not 50
+  TRACE = SeverityNumber.TRACE,
+  DEBUG = SeverityNumber.DEBUG,
+  INFO = SeverityNumber.INFO,
+  WARN = SeverityNumber.WARN,
+  ERROR = SeverityNumber.ERROR,
+  FATAL = SeverityNumber.FATAL,
 }
 
 @Injectable()
-export class OtelLoggerService {
-  private logger = logs.getLogger('app');
+export class OtelLoggerService implements LoggerService {
+  private readonly consoleLogger = new ConsoleLogger('AppLogger');
+  private logger = logs.getLogger(serviceName);
 
   getLogLevelNumber(level: LogLevel): number {
     // Returns OpenTelemetry spec severity numbers
@@ -51,7 +53,10 @@ export class OtelLoggerService {
       // forceFlush() waits for pending batches to be exported
       if ((loggerProvider as any).forceFlush) {
         console.log('[OTEL Logger] Calling forceFlush()...');
-        await (loggerProvider as any).forceFlush(timeoutMs);
+        await Promise.race([
+          (loggerProvider as any).forceFlush(),
+          new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        ]);
         console.log('[OTEL Logger] forceFlush() completed');
       }
     } catch (error) {
@@ -107,36 +112,42 @@ export class OtelLoggerService {
   }
 
   trace(message: string, context?: string, metadata?: Record<string, any>) {
+    this.consoleLogger.verbose(message, context);
     this.emit(LogLevel.TRACE, message, context, metadata);
   }
 
   debug(message: string, context?: string, metadata?: Record<string, any>) {
+    this.consoleLogger.debug(message, context);
     this.emit(LogLevel.DEBUG, message, context, metadata);
   }
 
   info(message: string, context?: string, metadata?: Record<string, any>) {
+    this.consoleLogger.log(message, context);
     this.emit(LogLevel.INFO, message, context, metadata);
   }
 
   log(message: string, context?: string, metadata?: Record<string, any>) {
+    this.consoleLogger.log(message, context);
     this.emit(LogLevel.INFO, message, context, metadata);
   }
 
   warn(message: string, context?: string, metadata?: Record<string, any>) {
+    this.consoleLogger.warn(message, context);
     this.emit(LogLevel.WARN, message, context, metadata);
   }
 
-  error(message: string, error?: any, context?: string) {
+  error(message: string, errorOrTrace?: any, context?: string) {
     const metadata: Record<string, any> = {};
-    if (error) {
-      if (error instanceof Error) {
-        metadata['error.type'] = error.name;
-        metadata['error.message'] = error.message;
-        metadata['error.stack'] = error.stack;
+    if (errorOrTrace) {
+      if (errorOrTrace instanceof Error) {
+        metadata['error.type'] = errorOrTrace.name;
+        metadata['error.message'] = errorOrTrace.message;
+        metadata['error.stack'] = errorOrTrace.stack;
       } else {
-        metadata['error'] = JSON.stringify(error);
+        metadata['error'] = String(errorOrTrace);
       }
     }
+    this.consoleLogger.error(message, errorOrTrace, context);
     this.emit(LogLevel.ERROR, message, context, metadata);
   }
 
@@ -151,6 +162,12 @@ export class OtelLoggerService {
         metadata['error'] = JSON.stringify(error);
       }
     }
+    this.consoleLogger.fatal(message, error, context);
     this.emit(LogLevel.FATAL, message, context, metadata);
+  }
+
+  verbose(message: string, context?: string) {
+    this.consoleLogger.verbose(message, context);
+    this.emit(LogLevel.TRACE, message, context);
   }
 }

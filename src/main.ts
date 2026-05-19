@@ -2,10 +2,21 @@ import './instrument';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { OtelLoggerService } from './otel-logger.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = new Logger('Bootstrap');
+  const appLogger = app.get(OtelLoggerService);
+
+  // Route Nest framework logs through OTEL-enabled logger.
+  app.useLogger(appLogger);
+
+  // Runtime self-test through custom logger path (not console.log).
+  appLogger.info('Startup self-test INFO log', 'Bootstrap');
+  appLogger.warn('Startup self-test WARN log', 'Bootstrap');
+  appLogger.error('Startup self-test ERROR log', new Error('Startup self-test error'), 'Bootstrap');
+  appLogger.flush(1500).catch(() => undefined);
   
   const port = process.env.PORT || 3000;
   
