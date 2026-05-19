@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { HttpExceptionFilter } from './http-exception.filter';
 import { OtelLoggerService } from './otel-logger.service';
+import { ServiceMetricsService } from './service-metrics.service';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { OtelLoggerService } from './otel-logger.service';
   providers: [
     AppService,
     OtelLoggerService,
+    ServiceMetricsService,
     {
       provide: APP_FILTER,
       useClass: HttpExceptionFilter,

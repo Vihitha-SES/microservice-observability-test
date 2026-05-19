@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, BadRequestException, Logger } from '@nestjs/common';
 import { AppService } from './app.service';
 import { OtelLoggerService } from './otel-logger.service';
+import { ServiceMetricsService } from './service-metrics.service';
 
 @Controller()
 export class AppController {
@@ -9,6 +10,7 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly otelLogger: OtelLoggerService,
+    private readonly serviceMetrics: ServiceMetricsService,
   ) {
     this.logger.log('AppController initialized');
     this.otelLogger.info('AppController initialized', AppController.name);
@@ -116,7 +118,12 @@ export class AppController {
       'GET /health/live called',
       'AppController',
     );
-    return { status: 'alive', timestamp: new Date().toISOString() };
+    this.serviceMetrics.markLiveness(true);
+    return {
+      status: 'alive',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: this.serviceMetrics.getUptimeSeconds(),
+    };
   }
 
   @Get('health/ready')
@@ -127,7 +134,12 @@ export class AppController {
       'AppController',
     );
     await new Promise((resolve) => setTimeout(resolve, 100));
-    return { status: 'ready', timestamp: new Date().toISOString() };
+    this.serviceMetrics.markReadiness(true);
+    return {
+      status: 'ready',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: this.serviceMetrics.getUptimeSeconds(),
+    };
   }
 
   @Get('system-info')
