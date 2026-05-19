@@ -96,7 +96,9 @@ export class OtelLoggerService implements LoggerService {
         severityText: this.getLogLevelText(level),
         body: message,
         attributes,
-        timestamp: Date.now() * 1_000_000, // nanoseconds
+        // OTEL JS Logger.emit expects millisecond-based TimeInput when passing number.
+        // Nanoseconds here shift event time out of SigNoz default query window.
+        timestamp: Date.now(),
       };
       
       this.logger.emit(logRecord);
