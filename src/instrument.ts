@@ -3,6 +3,7 @@ import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentation
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-grpc';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
+import { HostMetrics } from '@opentelemetry/host-metrics';
 import { BatchLogRecordProcessor, LoggerProvider } from '@opentelemetry/sdk-logs';
 import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { resourceFromAttributes } from '@opentelemetry/resources';
@@ -63,6 +64,11 @@ const sdk = new NodeSDK({
 // Start SDK which initializes all providers
 sdk.start();
 console.log(`[OTEL] SDK started successfully`);
+
+const myServiceMeterProvider = metrics.getMeterProvider();
+const hostMetrics = new HostMetrics({ meterProvider: myServiceMeterProvider });
+hostMetrics.start();
+console.log('[OTEL] HostMetrics started');
 
 const processLogger = logs.getLogger('process-exceptions');
 const processTracer = trace.getTracer('process-exceptions');
